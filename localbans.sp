@@ -6,7 +6,7 @@
 
 public Plugin myinfo =
 {
-	name = "Simple LocalBans",
+	name = "LocalBans",
 	author = "88",
 	description = "Basic banning commands using database",
 	version = "1.0",
@@ -17,6 +17,7 @@ static const char DBName[] = "localbans";
 
 Database  g_hDB;
 StringMap g_hBanCache;
+KeyValues g_hLocalBans;
 
 int       g_iBanTargetUserId[MAXPLAYERS + 1];
 int       g_iBanTime[MAXPLAYERS + 1];
@@ -33,7 +34,8 @@ enum BanCache
 
 public void OnPluginStart()
 {
-	g_hBanCache = new StringMap();
+	g_hBanCache  = new StringMap();
+	g_hLocalBans = new KeyValues("localbans");
 	
 	DB_Connect();
 
@@ -42,6 +44,11 @@ public void OnPluginStart()
 	RegAdminCmd("sm_unban", SM_UnBan, ADMFLAG_UNBAN, "");
 	RegAdminCmd("sm_bans", SM_Bans, ADMFLAG_BAN, "");
 	RegAdminCmd("sm_banlist", SM_Bans, ADMFLAG_RCON, "");
+}
+
+public void OnConfigsExecuted()
+{
+	LoadLocalbansConfig();
 }
 
 public void OnClientAuthorized(int client, const char[] auth)
@@ -141,7 +148,7 @@ void OpenPlayersMenu(int client)
 	char sName[MAX_NAME_LENGTH], sInfo[8];
 	for(int target = 1; target <= MaxClients; target++)
 	{
-		if(IsClientInGame(target) && !IsFakeClient(target) && client != target)
+		if(IsClientInGame(target) && !IsFakeClient(target))
 		{
 			GetClientName(target, sName, sizeof(sName));
 			IntToString(GetClientUserId(target), sInfo, sizeof(sInfo));
@@ -176,6 +183,22 @@ void OpenBanTimeMenu(int client)
 	Menu menu = new Menu(Menu_BanTimes);
 	menu.SetTitle("Ban time\n \n");
 	
+	char timeName[32], time[16];
+	
+	g_hLocalBans.JumpToKey("bantimes");
+	g_hLocalBans.GotoFirstSubKey(false);
+	
+	do
+	{
+		g_hLocalBans.GetSectionName(time, sizeof(time));
+		g_hLocalBans.GetString(NULL_STRING, timeName, sizeof(timeName));
+		
+		menu.AddItem(time, timeName);
+	}
+	while(g_hLocalBans.GotoNextKey(false));
+	
+	g_hLocalBans.Rewind();
+
 	menu.ExitButton = true;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -185,7 +208,7 @@ public int Menu_BanTimes(Menu menu, MenuAction action, int client, int param2)
 {
 	if(action == MenuAction_Select)
 	{
-		char sInfo[8];
+		char sInfo[16];
 		menu.GetItem(param2, sInfo, sizeof(sInfo));
 		
 		g_iBanTime[client] = StringToInt(sInfo);
@@ -209,8 +232,24 @@ public int Menu_BanTimes(Menu menu, MenuAction action, int client, int param2)
 void OpenReasonMenu(int client)
 {
 	Menu menu = new Menu(Menu_Reason);
-	menu.SetTitle("Ban reason");
+	menu.SetTitle("Ban reason\n \n");
 
+	char reasonName[MAX_REASON_LENGTH], reasonFull[MAX_REASON_LENGTH];
+	
+	g_hLocalBans.JumpToKey("banreasons");
+	g_hLocalBans.GotoFirstSubKey(false);
+	
+	do
+	{
+		g_hLocalBans.GetSectionName(reasonFull, sizeof(reasonFull));
+		g_hLocalBans.GetString(NULL_STRING, reasonName, sizeof(reasonName));
+		
+		menu.AddItem(reasonFull, reasonName);
+	}
+	while(g_hLocalBans.GotoNextKey(false));
+	
+	g_hLocalBans.Rewind();
+	
 	menu.ExitButton = true;
 	menu.ExitBackButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -388,24 +427,25 @@ void LoadLocalbansConfig()
 	
 	if(!FileExists(sPath) && !FileExists(sPath, true))
 	{
-		SetFailState("%s not exists", sPath);
+		SetFailState("%s not exists.", sPath);
+		return;
 	}
-	
-	KeyValues kv = new KeyValues("localbans");
-	
-	if(kv.ImportFromFile(sPath))
+
+	if(g_hLocalBans.ImportFromFile(sPath))
 	{
-		if(kv.JumpToKey("bantimes"))
+		if(g_hLocalBans.JumpToKey("bantimes") == false || g_hLocalBans.JumpToKey("banreasons") == false)
 		{
-			
+			SetFailState("wtf wtf wtf wtf wtf wtf wtf wtf wtf wtf");
+			return;
 		}
+		
+		g_hLocalBans.Rewind();
 	}
 	else
 	{
-		SetFailState("Something went wrong reading from the localbans.cfg file.");
+		SetFailState("Something went wrong reading from the %s.", sPath);
+		return;
 	}
-	
-	delete kv;
 }
 
 void AdvancedKickClient(int target, char[] reason, char[] name, int bantime, int unbantime)
@@ -435,7 +475,7 @@ void BanNotify(char[] reason, char[] name, int bantime)
 	}
 }
 
-void LogBan()
+void LogAdminBan()
 {
 	
 }
