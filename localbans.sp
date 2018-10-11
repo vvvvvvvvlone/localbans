@@ -25,7 +25,7 @@ bool      g_bWaitForReason[MAXPLAYERS + 1];
 
 char      g_sLoggingPath[PLATFORM_MAX_PATH];
 
-enum BanTypes
+enum BanType
 {
 	BAN_DEFAULT,
 	BAN_STEAMID,
@@ -37,8 +37,8 @@ enum BanCache
 {
 	String:Auth[32],
 	String:Ip[16],
-	BanTime,
-	BanTypes:BanType,
+	Time,
+	BanType:Type,
 	String:Name[MAX_NAME_LENGTH],
 	Timestamp,
 	String:Reason[MAX_REASON_LENGTH],
@@ -113,7 +113,7 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 		if(target != 0)
 		{
 			int timestamp = GetTime();
-			int banTime   = g_iBanTime[client] * 60;
+			int seconds   = g_iBanTime[client] * 60;
 			char sName[MAX_NAME_LENGTH], sName2[MAX_NAME_LENGTH], sAuth[32], sAuth2[32], sReason[MAX_REASON_LENGTH], sIp[16];
 			
 			FormatEx(sReason, sizeof(sReason), "%s", (strlen(args) > 1)? args:"N/A");
@@ -123,9 +123,9 @@ public Action OnClientSayCommand(int client, const char[] command, const char[] 
 			GetClientAuthId(client, AuthId_Steam2, sAuth2, sizeof(sAuth2));
 			GetClientIP(target, sIp, sizeof(sIp), true);
 			
-			DB_CreateBan(sAuth, sIp, banTime, BAN_DEFAULT, sName, timestamp, sReason, sAuth2, sName2);
+			DB_CreateBan(sAuth, sIp, seconds, BAN_DEFAULT, sName, timestamp, sReason, sAuth2, sName2);
 			LogBan(BAN_DEFAULT, sName2, sAuth2, sName, sAuth, g_iBanTime[client], sReason);
-			AdvancedKickClient(target, sReason, sName2, g_iBanTime[client], timestamp + banTime);
+			AdvancedKickClient(target, sReason, sName2, g_iBanTime[client], timestamp + seconds);
 			BanNotify(sReason, sName, g_iBanTime[client]);
 		}
 		else
@@ -175,11 +175,11 @@ public Action SM_Ban(int client, int args)
 	GetClientIP(target, sIp, sizeof(sIp), true);
 
 	int timestamp = GetTime();
-	int banTime = time * 60;
+	int seconds   = time * 60;
 	
 	if(client == 0)
 	{
-		DB_CreateBan(sAuth, sIp, banTime, BAN_DEFAULT, sName, timestamp, sReason, "Console", sName2);
+		DB_CreateBan(sAuth, sIp, seconds, BAN_DEFAULT, sName, timestamp, sReason, "Console", sName2);
 		LogBan(BAN_DEFAULT, sName2, "Console", sName, sAuth, time, sReason);
 	}
 	else
@@ -187,7 +187,7 @@ public Action SM_Ban(int client, int args)
 		char sAuth2[32];
 		GetClientAuthId(client, AuthId_Steam2, sAuth2, sizeof(sAuth2));
 		
-		DB_CreateBan(sAuth, sIp, banTime, BAN_DEFAULT, sName, timestamp, sReason, sAuth2, sName2);
+		DB_CreateBan(sAuth, sIp, seconds, BAN_DEFAULT, sName, timestamp, sReason, sAuth2, sName2);
 		LogBan(BAN_DEFAULT, sName2, sAuth2, sName, sAuth, time, sReason);
 	}
 
@@ -222,11 +222,11 @@ public Action SM_AddBan(int client, int args)
 	GetClientName(client, sName, sizeof(sName));
 
 	int timestamp = GetTime();
-	int banTime = time * 60;
+	int seconds   = time * 60;
 	
 	if(client == 0)
 	{
-		DB_CreateBan(sAuth, "N/A", banTime, BAN_STEAMID, "N/A", timestamp, sReason, "Console", sName);
+		DB_CreateBan(sAuth, "N/A", seconds, BAN_STEAMID, "N/A", timestamp, sReason, "Console", sName);
 		LogBan(BAN_STEAMID, sName, "Console", _, sAuth, time, sReason);
 	}
 	else
@@ -234,7 +234,7 @@ public Action SM_AddBan(int client, int args)
 		char sAuth2[32];
 		GetClientAuthId(client, AuthId_Steam2, sAuth2, sizeof(sAuth2));
 		
-		DB_CreateBan(sAuth, "N/A", banTime, BAN_STEAMID, "N/A", timestamp, sReason, sAuth2, sName);
+		DB_CreateBan(sAuth, "N/A", seconds, BAN_STEAMID, "N/A", timestamp, sReason, sAuth2, sName);
 		LogBan(BAN_STEAMID, sName, sAuth2, _, sAuth, time, sReason);
 	}
 	
@@ -262,11 +262,11 @@ public Action SM_BanIp(int client, int args)
 	GetClientName(client, sName, sizeof(sName));
 
 	int timestamp = GetTime();
-	int banTime = time * 60;
+	int seconds   = time * 60;
 	
 	if(client == 0)
 	{
-		DB_CreateBan("N/A", sIp, banTime, BAN_IP, "N/A", timestamp, sReason, "Console", sName);
+		DB_CreateBan("N/A", sIp, seconds, BAN_IP, "N/A", timestamp, sReason, "Console", sName);
 		LogBan(BAN_IP, sName, "Console", _, sIp, time, sReason);
 	}
 	else
@@ -274,7 +274,7 @@ public Action SM_BanIp(int client, int args)
 		char sAuth[32];
 		GetClientAuthId(client, AuthId_Steam2, sAuth, sizeof(sAuth));
 		
-		DB_CreateBan("N/A", sIp, banTime, BAN_IP, "N/A", timestamp, sReason, sAuth, sName);
+		DB_CreateBan("N/A", sIp, seconds, BAN_IP, "N/A", timestamp, sReason, sAuth, sName);
 		LogBan(BAN_IP, sName, sAuth, _, sIp, time, sReason);
 	}
 	
@@ -315,7 +315,7 @@ public Action SM_UnBan(int client, int args)
 }
 
 public Action SM_SearchBan(int client, int args)
-{
+{	
 	return Plugin_Handled;
 }
 
@@ -358,7 +358,7 @@ public int Menu_ShowMode(Menu menu, MenuAction action, int client, int param2)
 				IntToString(idx, sKey, sizeof(sKey));
 				g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
 				
-				if(IsActiveBan(pack[BanType], pack[Timestamp], pack[BanTime]))
+				if(IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
 				{
 					has = true;
 					break;
@@ -395,7 +395,7 @@ void OpenBanlistMenu(int client, int showmode)
 	Menu menu = new Menu(Menu_ShowBans);
 	menu.SetTitle("Banlist\n \n");
 	
-	char sKey[16], sItem[64], sInfo[300];
+	char sKey[16], sInfo[300], sItem[64];
 	any[] pack = new any[BanCache];
 	
 	for(int idx, size = g_hBanCache.Size, item; idx < size; idx++)
@@ -403,12 +403,12 @@ void OpenBanlistMenu(int client, int showmode)
 		IntToString(idx, sKey, sizeof(sKey));
 		g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
 		
-		if(showmode == 0 && !IsActiveBan(pack[BanType], pack[Timestamp], pack[BanTime]))
+		if(showmode == 0 && !IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
 		{
 			continue;
 		}
 		
-		FormatEx(sInfo, sizeof(sInfo), "%s;%s;%s;%s;%d;%d;%s;%s;%d", pack[Auth], pack[Ip], pack[Name], pack[Reason], pack[Timestamp], pack[BanTime], pack[AdminAuth], pack[AdminName], pack[BanType]);
+		FormatEx(sInfo, sizeof(sInfo), "%s;%s;%s;%s;%d;%d;%s;%s;%d", pack[Auth], pack[Ip], pack[Name], pack[Reason], pack[Timestamp], pack[Time], pack[AdminAuth], pack[AdminName], pack[Type]);
 		FormatEx(sItem, sizeof(sItem), "#%d: %s", ++item, pack[Name]);
 		menu.AddItem(sInfo, sItem);
 	}
@@ -448,10 +448,10 @@ public int Menu_ShowBans(Menu menu, MenuAction action, int client, int param2)
 	Name        2
 	Reason      3
 	Timestamp   4
-	BanTime     5
+	Time        5
 	AdminAuth   6
 	AdminName   7
-	BanType     8
+	Type        8
 */
 
 void ShowBanInfo(int client, char[] info)
@@ -459,19 +459,19 @@ void ShowBanInfo(int client, char[] info)
 	char sExplode[9][MAX_REASON_LENGTH];
 	ExplodeString(info, ";", sExplode, sizeof(sExplode), sizeof(sExplode[]));
 	
-	int banDate = StringToInt(sExplode[4]);
-	int banTime = StringToInt(sExplode[5]);
-	BanTypes banType = view_as<BanTypes>(StringToInt(sExplode[8]));
+	BanType type = view_as<BanType>(StringToInt(sExplode[8]));
+	int date     = StringToInt(sExplode[4]);
+	int time     = StringToInt(sExplode[5]);
 	
 	char sDate[32], sUnban[32];
-	FormatTime(sDate, sizeof(sDate), "%x %X", banDate);
-	if(banTime == 0)
+	FormatTime(sDate, sizeof(sDate), "%x %X", date);
+	if(time == 0)
 	{
 		FormatEx(sUnban, sizeof(sUnban), "Permanent");
 	}
 	else
 	{
-		FormatTime(sUnban, sizeof(sUnban), "%x %X", banDate + banTime);
+		FormatTime(sUnban, sizeof(sUnban), "%x %X", date + time);
 	}
 	
 	char sTitle[400];
@@ -481,8 +481,8 @@ void ShowBanInfo(int client, char[] info)
 	Format(sTitle, sizeof(sTitle), "%sIP: %s\n", sTitle, sExplode[1]);
 	Format(sTitle, sizeof(sTitle), "%sReason: %s\n \n", sTitle, sExplode[3]);
 	
-	Format(sTitle, sizeof(sTitle), "%sBan date: %s\n", sTitle, sDate);
-	Format(sTitle, sizeof(sTitle), "%sBan time: %d min\n", sTitle, banTime / 60);
+	Format(sTitle, sizeof(sTitle), "%sDate: %s\n", sTitle, sDate);
+	Format(sTitle, sizeof(sTitle), "%sTime: %d min\n", sTitle, time / 60);
 	Format(sTitle, sizeof(sTitle), "%sUnban: %s\n \n", sTitle, sUnban);
 	
 	Format(sTitle, sizeof(sTitle), "%sBanned by: %s (%s)\n \n", sTitle, sExplode[7], sExplode[6]);
@@ -491,8 +491,8 @@ void ShowBanInfo(int client, char[] info)
 	menu.SetTitle(sTitle);
 	
 	char sInfo[32];
-	FormatEx(sInfo, sizeof(sInfo), "%s", (banType == BAN_IP)? sExplode[1]:sExplode[0]);
-	menu.AddItem(sInfo, "Unban", (IsActiveBan(banType, banDate, banTime))? ITEMDRAW_DEFAULT:ITEMDRAW_DISABLED);
+	FormatEx(sInfo, sizeof(sInfo), "%s", (type == BAN_IP)? sExplode[1]:sExplode[0]);
+	menu.AddItem(sInfo, "Unban", (IsActiveBan(type, date, time))? ITEMDRAW_DEFAULT:ITEMDRAW_DISABLED);
 
 	menu.ExitButton = true;
 	menu.Display(client, MENU_TIME_FOREVER);
@@ -658,7 +658,7 @@ public int Menu_Reason(Menu menu, MenuAction action, int client, int param2)
 			
 			if(target != 0)
 			{
-				int banTime   = g_iBanTime[client] * 60;
+				int seconds   = g_iBanTime[client] * 60;
 				int timestamp = GetTime();
 				char sName[MAX_NAME_LENGTH], sName2[MAX_NAME_LENGTH], sAuth[32], sAuth2[32], sReason[MAX_REASON_LENGTH], sIp[16];
 				
@@ -669,9 +669,9 @@ public int Menu_Reason(Menu menu, MenuAction action, int client, int param2)
 				GetClientAuthId(client, AuthId_Steam2, sAuth2, sizeof(sAuth2));
 				GetClientIP(target, sIp, sizeof(sIp), true);
 				
-				DB_CreateBan(sAuth, sIp, banTime, BAN_DEFAULT, sName, timestamp, sReason, sAuth2, sName2);
+				DB_CreateBan(sAuth, sIp, seconds, BAN_DEFAULT, sName, timestamp, sReason, sAuth2, sName2);
 				LogBan(BAN_DEFAULT, sName2, sAuth2, sName, sAuth, g_iBanTime[client], sReason);
-				AdvancedKickClient(target, sReason, sName2, g_iBanTime[client], timestamp + banTime);
+				AdvancedKickClient(target, sReason, sName2, g_iBanTime[client], timestamp + seconds);
 				BanNotify(sReason, sName, g_iBanTime[client]);
 			}
 			else
@@ -713,7 +713,7 @@ void DB_Connect()
 void DB_CreateTable()
 {
 	char sQuery[400];
-	FormatEx(sQuery, sizeof(sQuery), "CREATE TABLE IF NOT EXISTS `%s` (`Id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `SteamId` VARCHAR(32) NOT NULL, `Ip` VARCHAR(16) NOT NULL, `BanTime` INTEGER NOT NULL, `BanType` INTEGER NOT NULL, `Name` VARCHAR(%d) NOT NULL, `Timestamp` INTEGER NOT NULL, `Reason` VARCHAR(%d) NOT NULL, `AdminId` VARCHAR(32) NOT NULL, `AdminName` VARCHAR(%d) NOT NULL);", 
+	FormatEx(sQuery, sizeof(sQuery), "CREATE TABLE IF NOT EXISTS `%s` (`Id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `SteamId` VARCHAR(32) NOT NULL, `Ip` VARCHAR(16) NOT NULL, `Time` INTEGER NOT NULL, `Type` INTEGER NOT NULL, `Name` VARCHAR(%d) NOT NULL, `Timestamp` INTEGER NOT NULL, `Reason` VARCHAR(%d) NOT NULL, `AdminId` VARCHAR(32) NOT NULL, `AdminName` VARCHAR(%d) NOT NULL);", 
 		DBName,
 		MAX_NAME_LENGTH,
 		MAX_REASON_LENGTH,
@@ -733,7 +733,7 @@ public void DB_CreateTable_Callback(Database db, DBResultSet results, const char
 void DB_LoadBans()
 {
 	char sQuery[128];
-	FormatEx(sQuery, sizeof(sQuery), "SELECT `SteamId`, `Ip`, `BanTime`, `BanType`, `Name`, `Timestamp`, `Reason`, `AdminId`, `AdminName` FROM `%s`;", DBName);
+	FormatEx(sQuery, sizeof(sQuery), "SELECT `SteamId`, `Ip`, `Time`, `Type`, `Name`, `Timestamp`, `Reason`, `AdminId`, `AdminName` FROM `%s`;", DBName);
 	
 	g_hDB.Query(DB_LoadBans_Callback, sQuery);
 }
@@ -751,8 +751,8 @@ public void DB_LoadBans_Callback(Database db, DBResultSet results, const char[] 
 		{
 			results.FetchString(0, pack[Auth], 32);
 			results.FetchString(1, pack[Ip], 16);
-			pack[BanTime] = results.FetchInt(2);
-			pack[BanType] = view_as<BanTypes>(results.FetchInt(3));
+			pack[Time] = results.FetchInt(2);
+			pack[Type] = view_as<BanType>(results.FetchInt(3));
 			results.FetchString(4, pack[Name], MAX_NAME_LENGTH);
 			pack[Timestamp] = results.FetchInt(5);
 			results.FetchString(6, pack[Reason], MAX_REASON_LENGTH);
@@ -769,13 +769,14 @@ public void DB_LoadBans_Callback(Database db, DBResultSet results, const char[] 
 	}
 }
 
-void DB_CreateBan(char[] steamId, char[] ip, int banTime, BanTypes banType, char[] name, int timestamp, char[] reason, char[] adminId, char[] adminName)
+void DB_CreateBan(char[] steamId, char[] ip, int time, BanType type, char[] name, int timestamp, char[] reason, char[] adminId, char[] adminName)
 {
 	any[] pack = new any[BanCache];
 	
 	FormatEx(pack[Auth], 32, "%s", steamId);
 	FormatEx(pack[Ip], 16, "%s", ip);
-	pack[BanTime] = banTime;
+	pack[Time] = time;
+	pack[Type] = type;
 	FormatEx(pack[Name], MAX_NAME_LENGTH, "%s", name);
 	pack[Timestamp] = timestamp;
 	FormatEx(pack[Reason], MAX_REASON_LENGTH, "%s", reason);
@@ -786,12 +787,12 @@ void DB_CreateBan(char[] steamId, char[] ip, int banTime, BanTypes banType, char
 	IntToString(g_hBanCache.Size, sKey, sizeof(sKey));
 	g_hBanCache.SetArray(sKey, pack, view_as<int>(BanCache));
 	
-	FormatEx(sQuery, sizeof(sQuery), "INSERT INTO `%s` (`SteamId`, `Ip`, `BanTime`, `BanType`, `Name`, `Timestamp`, `Reason`, `AdminId`, `AdminName`) VALUES ('%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%s');", 
+	FormatEx(sQuery, sizeof(sQuery), "INSERT INTO `%s` (`SteamId`, `Ip`, `Time`, `Type`, `Name`, `Timestamp`, `Reason`, `AdminId`, `AdminName`) VALUES ('%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%s');", 
 		DBName,
 		steamId,
 		ip,
-		banTime,
-		banType,
+		time,
+		type,
 		name,
 		timestamp,
 		reason,
@@ -820,7 +821,7 @@ void DB_UpdateBan(char[] auth)
 		IntToString(idx, sKey, sizeof(sKey));
 		g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
 		
-		if(!IsActiveBan(pack[BanType], pack[Timestamp], pack[BanTime]))
+		if(!IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
 		{
 			continue;
 		}
@@ -830,12 +831,12 @@ void DB_UpdateBan(char[] auth)
 		
 		if(StrEqual(sAuth, auth) || StrEqual(sIp, auth))
 		{
-			pack[BanType] = BAN_NONE;
+			pack[Type] = BAN_NONE;
 			g_hBanCache.SetArray(sKey, pack, view_as<int>(BanCache));
 		}
 	}
 	
-	FormatEx(sQuery, sizeof(sQuery), "UPDATE `%s` SET `BanType` = '%d' WHERE `SteamId` = '%s' OR `Ip` = '%s';", DBName, BAN_NONE, auth, auth);
+	FormatEx(sQuery, sizeof(sQuery), "UPDATE `%s` SET `Type` = '%d' WHERE `SteamId` = '%s' OR `Ip` = '%s';", DBName, BAN_NONE, auth, auth);
 	
 	g_hDB.Query(DB_UpdateBan_Callback, sQuery);
 }
@@ -907,7 +908,7 @@ void SearchBan(int target)
 		IntToString(idx, sKey, sizeof(sKey));
 		g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
 
-		if(!IsActiveBan(pack[BanType], pack[Timestamp], pack[BanTime]))
+		if(!IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
 		{
 			continue;
 		}
@@ -921,20 +922,20 @@ void SearchBan(int target)
 		g_hLocalBans.Rewind();
 		int checkMode = g_hLocalBans.GetNum("check_mode");
 		
-		if((pack[BanType] == BAN_DEFAULT && ((checkMode == 0 && auth) || (checkMode == 1 && (auth || ip))))
-		|| (pack[BanType] == BAN_STEAMID && auth)
-		|| (pack[BanType] == BAN_IP && ip))
+		if((pack[Type] == BAN_DEFAULT && ((checkMode == 0 && auth) || (checkMode == 1 && (auth || ip))))
+		|| (pack[Type] == BAN_STEAMID && auth)
+		|| (pack[Type] == BAN_IP && ip))
 		{
-			AdvancedKickClient(target, pack[Reason], pack[AdminName], pack[BanTime], pack[Timestamp] + pack[BanTime]);
+			AdvancedKickClient(target, pack[Reason], pack[AdminName], pack[Time], pack[Timestamp] + pack[Time]);
 			return;
 		}
 	}
 }
 
-void AdvancedKickClient(int target, char[] reason, char[] name, int banTime, int unbanTime)
+void AdvancedKickClient(int target, char[] reason, char[] name, int time, int unbanTime)
 {
 	char sUnban[32];
-	if(banTime == 0)
+	if(time == 0)
 	{
 		FormatEx(sUnban, sizeof(sUnban), "Permanent");
 	}
@@ -946,27 +947,27 @@ void AdvancedKickClient(int target, char[] reason, char[] name, int banTime, int
 	KickClient(target, "You are banned from this server.\nReason: %s\nBanned by: %s\nUnban: %s", reason, name, sUnban);
 }
 
-void BanNotify(char[] reason, char[] name, int banTime)
+void BanNotify(char[] reason, char[] name, int time)
 {
-	if(banTime == 0)
+	if(time == 0)
 	{
 		PrintToChatAll("Permanently banned player %s. (Reason: %s)", name, reason);
 	}
 	else
 	{
-		PrintToChatAll("Banned player %s for %d minutes. (Reason: %s)", name, banTime, reason);
+		PrintToChatAll("Banned player %s for %d minutes. (Reason: %s)", name, time, reason);
 	}
 }
 
-void LogBan(BanTypes banType, char[] adminName, char[] adminAuth, char[] name = NULL_STRING, char[] auth, int time, char[] reason)
+void LogBan(BanType type, char[] adminName, char[] adminAuth, char[] name = NULL_STRING, char[] auth, int time, char[] reason)
 {
-	if(banType == BAN_DEFAULT)
+	if(type == BAN_DEFAULT)
 	{
 		LogToFile(g_sLoggingPath, "Admin %s(%s) banned %s(%s) (minutes: %d) (reason: %s)", adminName, adminAuth, name, auth, time, reason);
 	}
 	else
 	{
-		LogToFile(g_sLoggingPath, "Admin %s(%s) added ban (%s: %s) (minutes: %d) (reason: %s)", adminName, adminAuth, (banType == BAN_STEAMID)? "SteamID":"IP", auth, time, reason);
+		LogToFile(g_sLoggingPath, "Admin %s(%s) added ban (%s: %s) (minutes: %d) (reason: %s)", adminName, adminAuth, (type == BAN_STEAMID)? "SteamID":"IP", auth, time, reason);
 	}
 }
 
@@ -975,12 +976,12 @@ void LogUnban(char[] name, char[] auth, char[] filter)
 	LogToFile(g_sLoggingPath, "Admin %s(%s) removed ban (filter: %s)", name, auth, filter);
 }
 
-void ParseArgument(BanTypes banType, char[] arg, int client, int &target = -1, char[] auth = NULL_STRING, int authLen = 0, int &time, char[] reason, int reasonLen)
+void ParseArgument(BanType type, char[] arg, int client, int &target = -1, char[] auth = NULL_STRING, int authLen = 0, int &time, char[] reason, int reasonLen)
 {
 	char sTarget[MAX_NAME_LENGTH];
 	int len = BreakString(arg, sTarget, sizeof(sTarget));
 
-	if(banType == BAN_DEFAULT)
+	if(type == BAN_DEFAULT)
 	{
 		target = FindTarget(client, sTarget, true);
 	}
@@ -1005,7 +1006,7 @@ void ParseArgument(BanTypes banType, char[] arg, int client, int &target = -1, c
 	FormatEx(reason, reasonLen, "%s", arg[len]);
 }
 
-bool IsActiveBan(BanTypes banType, int timestamp, int banTime)
+bool IsActiveBan(BanType type, int timestamp, int time)
 {
-	return (banType != BAN_NONE && (banTime == 0 || (timestamp + banTime) >= GetTime()));
+	return (type != BAN_NONE && (time == 0 || (timestamp + time) >= GetTime()));
 }
