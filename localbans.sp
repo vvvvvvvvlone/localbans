@@ -1,6 +1,9 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+#undef REQUIRE_PLUGIN
+#include <adminmenu>
+
 #define MAX_REASON_LENGTH 128
 
 public Plugin myinfo =
@@ -61,6 +64,12 @@ public void OnPluginStart()
 	RegAdminCmd("sm_bans", SM_Bans, ADMFLAG_UNBAN, "Opens banlist menu.");
 	RegAdminCmd("sm_banlist", SM_Bans, ADMFLAG_UNBAN, "Opens banlist menu.");
 	
+	TopMenu topmenu;
+	if(LibraryExists("adminmenu") && ((topmenu = GetAdminTopMenu()) != null))
+	{
+		OnAdminMenuReady(topmenu);
+	}
+	
 	LoadLogFile();
 	LoadTranslations("common.phrases");
 }
@@ -79,6 +88,19 @@ public void OnClientDisconnect(int client)
 public void OnClientPostAdminCheck(int client)
 {
 	SearchBan(client);
+}
+
+public void OnAdminMenuReady(Handle topmenu)
+{
+	TopMenu hTopmenu = TopMenu.FromHandle(topmenu);
+	
+	TopMenuObject category = hTopmenu.AddCategory("localbans_category", AdminMenu_Localbans, "localbans_adminmenu", ADMFLAG_BAN);
+
+	if(category != INVALID_TOPMENUOBJECT)
+	{
+		hTopmenu.AddItem("localbans_ban", AdminMenu_Ban, category, "localbans_ban", ADMFLAG_BAN);
+		hTopmenu.AddItem("localbans_banlist", AdminMenu_Banlist, category, "localbans_banlist", ADMFLAG_UNBAN);
+	}
 }
 
 public Action OnClientSayCommand(int client, const char[] command, const char[] args)
@@ -315,7 +337,62 @@ public Action SM_UnBan(int client, int args)
 }
 
 public Action SM_SearchBan(int client, int args)
-{	
+{
+	if(args < 1)
+	{
+		ReplyToCommand(client, "Usage: sm_searchban <steamid|ip>");
+		return Plugin_Handled;
+	}
+	
+	bool has;
+	int totalBans, activeBans;
+	char sAuth[32], sKey[16], sAuth2[32], sIp[16];
+	any[] pack = new any[BanCache];
+	GetCmdArgString(sAuth, sizeof(sAuth));
+	
+	for(int idx, size = g_hBanCache.Size; idx < size; idx++)
+	{
+		IntToString(idx, sKey, sizeof(sKey));
+		g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
+		
+		FormatEx(sAuth2, sizeof(sAuth2), "%s", pack[Auth]);
+		FormatEx(sIp, sizeof(sIp), "%s", pack[Ip]);
+		
+		if(StrEqual(sAuth, sAuth2) || StrEqual(sAuth, sIp))
+		{
+			if(client == 0)
+			{	
+				++totalBans;
+				
+				if(IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
+				{
+					++activeBans;
+				}
+			}
+			else
+			{
+				has = true;
+				break;
+			}
+		}
+	}
+	
+	if(client == 0)
+	{
+		if(totalBans == 0)
+		{
+			PrintToServer("No results found for your query.");
+		}
+		else
+		{
+			PrintToServer("Total bans: %d, active bans: %d.", totalBans, activeBans);
+		}
+	}
+	else
+	{
+		OpenBanlistMenu(client, has, _, true, sAuth);
+	}
+	
 	return Plugin_Handled;
 }
 
@@ -329,191 +406,40 @@ public Action SM_Bans(int client, int args)
 	return Plugin_Handled;
 }
 
-void OpenTypeMenu(int client)
+public void AdminMenu_Localbans(TopMenu topmenu, TopMenuAction action, TopMenuObject topobj_id, int param, char[] buffer, int maxlength)
 {
-	Menu menu = new Menu(Menu_ShowMode);
-	menu.SetTitle("Select banlist type\n \n");
-	
-	menu.AddItem("", "Active bans");
-	menu.AddItem("", "All bans");
-	
-	menu.ExitButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
+	if(action == TopMenuAction_DisplayOption)
+	{
+		FormatEx(buffer, maxlength, "LocalBans");
+	}
+	else if(action == TopMenuAction_DisplayTitle)
+	{
+		FormatEx(buffer, maxlength, "LocalBans\n \n");
+	}
 }
 
-public int Menu_ShowMode(Menu menu, MenuAction action, int client, int param2)
+public void AdminMenu_Ban(TopMenu topmenu, TopMenuAction action, TopMenuObject topobj_id, int client, char[] buffer, int maxlength)
 {
-	if(action == MenuAction_Select)
+	if(action == TopMenuAction_DisplayOption)
 	{
-		bool has;
-		int size = g_hBanCache.Size;
-		
-		if(param2 == 0)
-		{
-			char sKey[16];
-			any[] pack = new any[BanCache];
-			
-			for(int idx; idx < size; idx++)
-			{
-				IntToString(idx, sKey, sizeof(sKey));
-				g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
-				
-				if(IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
-				{
-					has = true;
-					break;
-				}
-			}
-		}
-		else
-		{
-			if(size > 0)
-			{	
-				has = true;
-			}
-		}
-		
-		if(has)
-		{
-			OpenBanlistMenu(client, param2);
-		}
-		else
-		{
-			PrintToChat(client, "There are no bans yet.");
-		}
+		FormatEx(buffer, maxlength, "Ban player");
 	}
-	else if(action == MenuAction_End)
+	else if(action == TopMenuAction_SelectOption)
 	{
-		delete menu;
+		OpenPlayersMenu(client);
 	}
-	
-	return 0;
 }
 
-void OpenBanlistMenu(int client, int showmode)
+public void AdminMenu_Banlist(TopMenu topmenu, TopMenuAction action, TopMenuObject topobj_id, int client, char[] buffer, int maxlength)
 {
-	Menu menu = new Menu(Menu_ShowBans);
-	menu.SetTitle("Banlist\n \n");
-	
-	char sKey[16], sInfo[300], sItem[64];
-	any[] pack = new any[BanCache];
-	
-	for(int idx, size = g_hBanCache.Size, item; idx < size; idx++)
+	if(action == TopMenuAction_DisplayOption)
 	{
-		IntToString(idx, sKey, sizeof(sKey));
-		g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
-		
-		if(showmode == 0 && !IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
-		{
-			continue;
-		}
-		
-		FormatEx(sInfo, sizeof(sInfo), "%s;%s;%s;%s;%d;%d;%s;%s;%d", pack[Auth], pack[Ip], pack[Name], pack[Reason], pack[Timestamp], pack[Time], pack[AdminAuth], pack[AdminName], pack[Type]);
-		FormatEx(sItem, sizeof(sItem), "#%d: %s", ++item, pack[Name]);
-		menu.AddItem(sInfo, sItem);
+		FormatEx(buffer, maxlength, "Banlist");
 	}
-	
-	menu.ExitBackButton = true;
-	menu.ExitButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
-}
-
-public int Menu_ShowBans(Menu menu, MenuAction action, int client, int param2)
-{
-	if(action == MenuAction_Select)
+	else if(action == TopMenuAction_SelectOption)
 	{
-		char sInfo[300];
-		menu.GetItem(param2, sInfo, sizeof(sInfo));
-		
-		ShowBanInfo(client, sInfo);
+		OpenTypeMenu(client);
 	}
-	else if(action == MenuAction_Cancel)
-	{
-		if(param2 == MenuCancel_ExitBack)
-		{
-			OpenTypeMenu(client);
-		}
-	}
-	else if(action == MenuAction_End)
-	{
-		delete menu;
-	}
-	
-	return 0;
-}
-
-/*
-	Auth        0
-	Ip          1
-	Name        2
-	Reason      3
-	Timestamp   4
-	Time        5
-	AdminAuth   6
-	AdminName   7
-	Type        8
-*/
-
-void ShowBanInfo(int client, char[] info)
-{
-	char sExplode[9][MAX_REASON_LENGTH];
-	ExplodeString(info, ";", sExplode, sizeof(sExplode), sizeof(sExplode[]));
-	
-	BanType type = view_as<BanType>(StringToInt(sExplode[8]));
-	int date     = StringToInt(sExplode[4]);
-	int time     = StringToInt(sExplode[5]);
-	
-	char sDate[32], sUnban[32];
-	FormatTime(sDate, sizeof(sDate), "%x %X", date);
-	if(time == 0)
-	{
-		FormatEx(sUnban, sizeof(sUnban), "Permanent");
-	}
-	else
-	{
-		FormatTime(sUnban, sizeof(sUnban), "%x %X", date + time);
-	}
-	
-	char sTitle[400];
-	FormatEx(sTitle, sizeof(sTitle), "Ban information of %s\n \n", sExplode[2]);
-	
-	Format(sTitle, sizeof(sTitle), "%sAuth: %s\n", sTitle, sExplode[0]);
-	Format(sTitle, sizeof(sTitle), "%sIP: %s\n", sTitle, sExplode[1]);
-	Format(sTitle, sizeof(sTitle), "%sReason: %s\n \n", sTitle, sExplode[3]);
-	
-	Format(sTitle, sizeof(sTitle), "%sDate: %s\n", sTitle, sDate);
-	Format(sTitle, sizeof(sTitle), "%sTime: %d min\n", sTitle, time / 60);
-	Format(sTitle, sizeof(sTitle), "%sUnban: %s\n \n", sTitle, sUnban);
-	
-	Format(sTitle, sizeof(sTitle), "%sBanned by: %s (%s)\n \n", sTitle, sExplode[7], sExplode[6]);
-	
-	Menu menu = new Menu(Menu_BanInfo);
-	menu.SetTitle(sTitle);
-	
-	char sInfo[32];
-	FormatEx(sInfo, sizeof(sInfo), "%s", (type == BAN_IP)? sExplode[1]:sExplode[0]);
-	menu.AddItem(sInfo, "Unban", (IsActiveBan(type, date, time))? ITEMDRAW_DEFAULT:ITEMDRAW_DISABLED);
-
-	menu.ExitButton = true;
-	menu.Display(client, MENU_TIME_FOREVER);
-}
-
-public int Menu_BanInfo(Menu menu, MenuAction action, int client, int param2)
-{
-	if(action == MenuAction_Select)
-	{
-		char sInfo[32];
-		menu.GetItem(param2, sInfo, sizeof(sInfo));
-		
-		DB_UpdateBan(sInfo);
-		PrintToChat(client, "Ban has been removed.");
-	}
-	else if(action == MenuAction_End)
-	{
-		delete menu;
-	}
-	
-	return 0;
 }
 
 void OpenPlayersMenu(int client)
@@ -686,6 +612,206 @@ public int Menu_Reason(Menu menu, MenuAction action, int client, int param2)
 		{
 			OpenBanTimeMenu(client);
 		}
+	}
+	else if(action == MenuAction_End)
+	{
+		delete menu;
+	}
+	
+	return 0;
+}
+
+void OpenTypeMenu(int client)
+{
+	Menu menu = new Menu(Menu_ShowMode);
+	menu.SetTitle("Select banlist type\n \n");
+	
+	menu.AddItem("", "Active bans");
+	menu.AddItem("", "All bans");
+	
+	menu.ExitButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int Menu_ShowMode(Menu menu, MenuAction action, int client, int param2)
+{
+	if(action == MenuAction_Select)
+	{
+		bool has;
+		int size = g_hBanCache.Size;
+		
+		if(param2 == 0)
+		{
+			char sKey[16];
+			any[] pack = new any[BanCache];
+			
+			for(int idx; idx < size; idx++)
+			{
+				IntToString(idx, sKey, sizeof(sKey));
+				g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
+				
+				if(IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
+				{
+					has = true;
+					break;
+				}
+			}
+		}
+		else
+		{
+			if(size > 0)
+			{	
+				has = true;
+			}
+		}
+		
+		OpenBanlistMenu(client, has, param2);
+	}
+	else if(action == MenuAction_End)
+	{
+		delete menu;
+	}
+	
+	return 0;
+}
+
+void OpenBanlistMenu(int client, bool hasBans, int showmode = -1, bool special = false, char[] auth = NULL_STRING)
+{
+	Menu menu = new Menu(Menu_ShowBans);
+	menu.SetTitle("Banlist\n \n");
+	
+	if(hasBans)
+	{
+		char sKey[16], sInfo[300], sItem[64], sAuth[32], sIp[16];
+		any[] pack = new any[BanCache];
+		
+		for(int idx, size = g_hBanCache.Size, item; idx < size; idx++)
+		{
+			IntToString(idx, sKey, sizeof(sKey));
+			g_hBanCache.GetArray(sKey, pack, view_as<int>(BanCache));
+			
+			if(special)
+			{
+				FormatEx(sAuth, sizeof(sAuth), "%s", pack[Auth]);
+				FormatEx(sIp, sizeof(sIp), "%s", pack[Ip]);
+				
+				if(!StrEqual(auth, sAuth) && !StrEqual(auth, sIp))
+				{
+					continue;
+				}
+			}
+			else
+			{
+				if(showmode == 0 && !IsActiveBan(pack[Type], pack[Timestamp], pack[Time]))
+				{
+					continue;
+				}
+			}
+			
+			FormatEx(sInfo, sizeof(sInfo), "%s;%s;%s;%s;%d;%d;%s;%s;%d", pack[Auth], pack[Ip], pack[Name], pack[Reason], pack[Timestamp], pack[Time], pack[AdminAuth], pack[AdminName], pack[Type]);
+			FormatEx(sItem, sizeof(sItem), "#%d: %s", ++item, pack[Name]);
+			menu.AddItem(sInfo, sItem);
+		}
+	}
+	else
+	{
+		menu.AddItem("", "There are no bans yet.", ITEMDRAW_DISABLED);
+	}
+	
+	menu.ExitBackButton = !special;
+	menu.ExitButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int Menu_ShowBans(Menu menu, MenuAction action, int client, int param2)
+{
+	if(action == MenuAction_Select)
+	{
+		char sInfo[300];
+		menu.GetItem(param2, sInfo, sizeof(sInfo));
+		
+		ShowBanInfo(client, sInfo);
+	}
+	else if(action == MenuAction_Cancel)
+	{
+		if(param2 == MenuCancel_ExitBack)
+		{
+			OpenTypeMenu(client);
+		}
+	}
+	else if(action == MenuAction_End)
+	{
+		delete menu;
+	}
+	
+	return 0;
+}
+
+/*
+	Auth        0
+	Ip          1
+	Name        2
+	Reason      3
+	Timestamp   4
+	Time        5
+	AdminAuth   6
+	AdminName   7
+	Type        8
+*/
+
+void ShowBanInfo(int client, char[] info)
+{
+	char sExplode[9][MAX_REASON_LENGTH];
+	ExplodeString(info, ";", sExplode, sizeof(sExplode), sizeof(sExplode[]));
+	
+	BanType type = view_as<BanType>(StringToInt(sExplode[8]));
+	int date     = StringToInt(sExplode[4]);
+	int time     = StringToInt(sExplode[5]);
+	
+	char sDate[32], sUnban[32];
+	FormatTime(sDate, sizeof(sDate), "%x %X", date);
+	if(time == 0)
+	{
+		FormatEx(sUnban, sizeof(sUnban), "Permanent");
+	}
+	else
+	{
+		FormatTime(sUnban, sizeof(sUnban), "%x %X", date + time);
+	}
+	
+	char sTitle[400];
+	FormatEx(sTitle, sizeof(sTitle), "Ban information of %s\n \n", sExplode[2]);
+	
+	Format(sTitle, sizeof(sTitle), "%sAuth: %s\n", sTitle, sExplode[0]);
+	Format(sTitle, sizeof(sTitle), "%sIP: %s\n", sTitle, sExplode[1]);
+	Format(sTitle, sizeof(sTitle), "%sReason: %s\n \n", sTitle, sExplode[3]);
+	
+	Format(sTitle, sizeof(sTitle), "%sDate: %s\n", sTitle, sDate);
+	Format(sTitle, sizeof(sTitle), "%sTime: %d min\n", sTitle, time / 60);
+	Format(sTitle, sizeof(sTitle), "%sUnban: %s\n \n", sTitle, sUnban);
+	
+	Format(sTitle, sizeof(sTitle), "%sBanned by: %s (%s)\n \n", sTitle, sExplode[7], sExplode[6]);
+	
+	Menu menu = new Menu(Menu_BanInfo);
+	menu.SetTitle(sTitle);
+	
+	char sInfo[32];
+	FormatEx(sInfo, sizeof(sInfo), "%s", (type == BAN_IP)? sExplode[1]:sExplode[0]);
+	menu.AddItem(sInfo, "Unban", (IsActiveBan(type, date, time))? ITEMDRAW_DEFAULT:ITEMDRAW_DISABLED);
+
+	menu.ExitButton = true;
+	menu.Display(client, MENU_TIME_FOREVER);
+}
+
+public int Menu_BanInfo(Menu menu, MenuAction action, int client, int param2)
+{
+	if(action == MenuAction_Select)
+	{
+		char sInfo[32];
+		menu.GetItem(param2, sInfo, sizeof(sInfo));
+		
+		DB_UpdateBan(sInfo);
+		PrintToChat(client, "Ban has been removed.");
 	}
 	else if(action == MenuAction_End)
 	{
