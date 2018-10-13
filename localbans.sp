@@ -1,10 +1,10 @@
 #pragma semicolon 1
 #pragma newdecls required
 
+#include <localbans>
+
 #undef REQUIRE_PLUGIN
 #include <adminmenu>
-
-#define MAX_REASON_LENGTH 128
 
 public Plugin myinfo =
 {
@@ -42,33 +42,20 @@ enum BanType
 	BAN_NONE
 };
 
-enum BanCache
-{
-	String:Auth[32],
-	String:Ip[16],
-	Time,
-	BanType:Type,
-	String:Name[MAX_NAME_LENGTH],
-	Timestamp,
-	String:Reason[MAX_REASON_LENGTH],
-	String:AdminAuth[32],
-	String:AdminName[MAX_NAME_LENGTH]
-};
-
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	RegPluginLibrary("localbans");
+	
+	CreateNative("LB_GetDatabase", Native_GetDatabase);
+	CreateNative("LB_GetBanCache", Native_GetBanCache);
+	/*CreateNative("LB_CreateBan", Native_CreateBan);
+	CreateNative("LB_RemoveBan", Native_RemoveBan);*/
 	
 	g_hOnBansLoaded      = CreateGlobalForward("LB_OnBansLoaded", ET_Ignore);
 	g_hOnBanCreated_Pre  = CreateGlobalForward("LB_OnBanCreated_Pre", ET_Hook, Param_String, Param_String);
 	g_hOnBanCreated_Post = CreateGlobalForward("LB_OnBanCreated_Post", ET_Ignore, Param_String, Param_String);
 	g_hOnBanRemoved_Pre  = CreateGlobalForward("LB_OnBanRemoved_Pre", ET_Hook, Param_String);
 	g_hOnBanRemoved_Post = CreateGlobalForward("LB_OnBanRemoved_Post", ET_Ignore, Param_String);
-	
-	CreateNative("LB_GetDatabase", Native_GetDatabase);
-	CreateNative("LB_GetBanCache", Native_GetBanCache);
-	/*CreateNative("LB_CreateBan", Native_CreateBan);
-	CreateNative("LB_RemoveBan", Native_RemoveBan);*/
 	
 	return APLRes_Success;
 }
