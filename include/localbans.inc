@@ -3,6 +3,8 @@
 #endif
 #define _localbans_included
 
+#define MAX_REASON_LENGTH 128
+
 enum BanCache
 {
 	String:Auth[32],
