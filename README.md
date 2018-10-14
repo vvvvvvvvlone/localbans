@@ -1,6 +1,7 @@
 # localbans:
 Simple banning plugin for CS:GO using database.
 Plugin has a configuration file - localbans.cfg
+The same way you can follow the admins actions. (addons\sourcemod\logs\localbans.txt)
 
 Commands:
 sm_ban:
