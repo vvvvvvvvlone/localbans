@@ -4,6 +4,7 @@ Plugin has a configuration file - localbans.cfg.
 The same way you can follow the admins actions. (addons\sourcemod\logs\localbans.txt)
 
 Commands:
+
 sm_ban:
 Usage: sm_ban <#userid|name> <minutes|0> [reason] (ADMFLAG_BAN for acces)
 
