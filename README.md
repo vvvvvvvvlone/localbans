@@ -3,9 +3,9 @@ Simple banning plugin for CS:GO using database.
 Plugin has a configuration file - localbans.cfg.
 The same way you can follow the admins actions. (addons\sourcemod\logs\localbans.txt)
 
-## - Commands:
+## Commands:
 
-##### - sm_ban:
+- ##### - sm_ban:
 Usage: sm_ban <#userid|name> <minutes|0> [reason] (ADMFLAG_BAN for acces)
 Example: sm_ban Nickname 60 abusive
 Note: use sm_ban without arguments to open ingame menu.
