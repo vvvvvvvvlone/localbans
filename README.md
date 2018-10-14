@@ -32,7 +32,7 @@ Opens banlist menu. (ADMFLAG_UNBAN for acces)
 ##### Also plugin has an extensive API. (localbans.inc)
 
 ## Requirements:
-- ul SourceMod 1.7 or above
+- SourceMod 1.7 or above
 
 ## Install:
 1. Compile source.
