@@ -6,9 +6,9 @@ The same way you can follow the admins actions. (addons\sourcemod\logs\localbans
 ## Commands:
 
 + ##### sm_ban:
- + Usage: sm_ban <#userid|name> <minutes|0> [reason] (ADMFLAG_BAN for acces)
- + Example: sm_ban Nickname 60 abusive
- + Note: use sm_ban without arguments to open ingame menu.
+  + Usage: sm_ban <#userid|name> <minutes|0> [reason] (ADMFLAG_BAN for acces)
+  + Example: sm_ban Nickname 60 abusive
+  + Note: use sm_ban without arguments to open ingame menu.
 
 - ##### sm_addban:
 + Usage: sm_addban <steamid> <time> [reason] (ADMFLAG_RCON for acces)
