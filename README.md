@@ -6,18 +6,23 @@ The same way you can follow the admins actions. (addons\sourcemod\logs\localbans
 Commands:
 
 sm_ban:
+
 Usage: sm_ban <#userid|name> <minutes|0> [reason] (ADMFLAG_BAN for acces)
 
 sm_addban:
+
 Usage: sm_addban <steamid> <time> [reason] (ADMFLAG_RCON for acces)
   
 sm_banip: 
+
 Usage: sm_banip <ip> <time> [reason]" (ADMFLAG_RCON for acces)
 
 sm_unban:
+
 Usage: sm_unban <steamid|ip> (ADMFLAG_UNBAN for acces)
 
 sm_searchban:
+
 Usage: sm_searchban <steamid|ip> (ADMFLAG_UNBAN for acces)
 
 sm_bans/sm_banlist: Opens banlist menu. (ADMFLAG_UNBAN for acces)
