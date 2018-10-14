@@ -11,11 +11,11 @@ The same way you can follow the admins actions. (addons\sourcemod\logs\localbans
   + Note: use sm_ban without arguments to open ingame menu.
 
 + ##### sm_addban:
-  + Usage: sm_addban <steamid> <time> [reason] (ADMFLAG_RCON for acces)
+  + Usage: sm_addban <steamid> <minutes|0> [reason] (ADMFLAG_RCON for acces)
   + Example: sm_addban STEAM_1:1:117572732 60 wh
   
 + ##### sm_banip: 
-  + Usage: sm_banip <ip> <time> [reason] (ADMFLAG_RCON for acces)
+  + Usage: sm_banip <ip> <minutes|0> [reason] (ADMFLAG_RCON for acces)
   + Example: sm_banip 156.241.54.24 60 aimbot
 
 + ##### sm_unban:
