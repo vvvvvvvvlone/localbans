@@ -34,22 +34,14 @@ Handle    g_hOnBanCreated_Post;
 Handle    g_hOnBanRemoved_Pre;
 Handle    g_hOnBanRemoved_Post;
 
-enum BanType
-{
-	BAN_DEFAULT,
-	BAN_STEAMID,
-	BAN_IP,
-	BAN_NONE
-};
-
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
 	RegPluginLibrary("localbans");
 	
 	CreateNative("LB_GetDatabase", Native_GetDatabase);
 	CreateNative("LB_GetBanCache", Native_GetBanCache);
-	/*CreateNative("LB_CreateBan", Native_CreateBan);
-	CreateNative("LB_RemoveBan", Native_RemoveBan);*/
+	CreateNative("LB_CreateBan", Native_CreateBan);
+	CreateNative("LB_RemoveBan", Native_RemoveBan);
 	
 	g_hOnBansLoaded      = CreateGlobalForward("LB_OnBansLoaded", ET_Ignore);
 	g_hOnBanCreated_Pre  = CreateGlobalForward("LB_OnBanCreated_Pre", ET_Hook, Param_String, Param_String);
@@ -327,7 +319,7 @@ public Action SM_UnBan(int client, int args)
 	char sArg[32], sName[MAX_NAME_LENGTH];
 	GetCmdArgString(sArg, sizeof(sArg));
 	
-	DB_UpdateBan(sArg);
+	DB_RemoveBan(sArg);
 	
 	GetClientName(client, sName, sizeof(sName));
 
@@ -821,7 +813,7 @@ public int Menu_BanInfo(Menu menu, MenuAction action, int client, int param2)
 		char sInfo[32];
 		menu.GetItem(param2, sInfo, sizeof(sInfo));
 		
-		DB_UpdateBan(sInfo);
+		DB_RemoveBan(sInfo);
 		PrintToChat(client, "Ban has been removed.");
 	}
 	else if(action == MenuAction_End)
@@ -850,7 +842,7 @@ void DB_Connect()
 void DB_CreateTable()
 {
 	char sQuery[400];
-	FormatEx(sQuery, sizeof(sQuery), "CREATE TABLE IF NOT EXISTS `%s` (`Id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `SteamId` VARCHAR(32) NOT NULL, `Ip` VARCHAR(16) NOT NULL, `Time` INTEGER NOT NULL, `Type` INTEGER NOT NULL, `Name` VARCHAR(%d) NOT NULL, `Timestamp` INTEGER NOT NULL, `Reason` VARCHAR(%d) NOT NULL, `AdminId` VARCHAR(32) NOT NULL, `AdminName` VARCHAR(%d) NOT NULL);", 
+	FormatEx(sQuery, sizeof(sQuery), "CREATE TABLE IF NOT EXISTS `%s` (`Id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, `Auth` VARCHAR(32) NOT NULL, `Ip` VARCHAR(16) NOT NULL, `Time` INTEGER NOT NULL, `Type` INTEGER NOT NULL, `Name` VARCHAR(%d) NOT NULL, `Timestamp` INTEGER NOT NULL, `Reason` VARCHAR(%d) NOT NULL, `AdminAuth` VARCHAR(32) NOT NULL, `AdminName` VARCHAR(%d) NOT NULL);", 
 		DBName,
 		MAX_NAME_LENGTH,
 		MAX_REASON_LENGTH,
@@ -870,7 +862,7 @@ public void DB_CreateTable_Callback(Database db, DBResultSet results, const char
 void DB_LoadBans()
 {
 	char sQuery[128];
-	FormatEx(sQuery, sizeof(sQuery), "SELECT `SteamId`, `Ip`, `Time`, `Type`, `Name`, `Timestamp`, `Reason`, `AdminId`, `AdminName` FROM `%s`;", DBName);
+	FormatEx(sQuery, sizeof(sQuery), "SELECT `Auth`, `Ip`, `Time`, `Type`, `Name`, `Timestamp`, `Reason`, `AdminAuth`, `AdminName` FROM `%s`;", DBName);
 	
 	g_hDB.Query(DB_LoadBans_Callback, sQuery);
 }
@@ -909,7 +901,7 @@ public void DB_LoadBans_Callback(Database db, DBResultSet results, const char[] 
 	}
 }
 
-void DB_CreateBan(const char[] auth = "N/A", const char[] ip = "N/A", int time, BanType type, const char[] name = "N/A", int timestamp, const char[] reason = "N/A", const char[] adminId, const char[] adminName)
+void DB_CreateBan(const char[] auth = "N/A", const char[] ip = "N/A", int time, BanType type, const char[] name = "N/A", int timestamp, const char[] reason = "N/A", const char[] adminAuth, const char[] adminName)
 {
 	Call_StartForward(g_hOnBanCreated_Pre);
 	Call_PushString(auth);
@@ -928,11 +920,11 @@ void DB_CreateBan(const char[] auth = "N/A", const char[] ip = "N/A", int time, 
 		data.WriteString(name);
 		data.WriteCell(timestamp);
 		data.WriteString(reason);
-		data.WriteString(adminId);
+		data.WriteString(adminAuth);
 		data.WriteString(adminName);
 		
 		char sQuery[500];
-		FormatEx(sQuery, sizeof(sQuery), "INSERT INTO `%s` (`SteamId`, `Ip`, `Time`, `Type`, `Name`, `Timestamp`, `Reason`, `AdminId`, `AdminName`) VALUES ('%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%s');", 
+		FormatEx(sQuery, sizeof(sQuery), "INSERT INTO `%s` (`Auth`, `Ip`, `Time`, `Type`, `Name`, `Timestamp`, `Reason`, `AdminAuth`, `AdminName`) VALUES ('%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s', '%s');", 
 			DBName,
 			auth,
 			ip,
@@ -941,7 +933,7 @@ void DB_CreateBan(const char[] auth = "N/A", const char[] ip = "N/A", int time, 
 			name,
 			timestamp,
 			reason,
-			adminId,
+			adminAuth,
 			adminName);
 			
 		g_hDB.Query(DB_CreateBan_Callback, sQuery, data);
@@ -993,7 +985,7 @@ public void DB_CreateBan_Callback(Database db, DBResultSet results, const char[]
 	delete data;
 }
 
-void DB_UpdateBan(const char[] auth)
+void DB_RemoveBan(const char[] auth)
 {
 	Call_StartForward(g_hOnBanRemoved_Pre);
 	Call_PushString(auth);
@@ -1007,7 +999,7 @@ void DB_UpdateBan(const char[] auth)
 		data.WriteString(auth);
 		
 		char sQuery[128];
-		FormatEx(sQuery, sizeof(sQuery), "UPDATE `%s` SET `Type` = '%d' WHERE `SteamId` = '%s' OR `Ip` = '%s';", DBName, BAN_NONE, auth, auth);
+		FormatEx(sQuery, sizeof(sQuery), "UPDATE `%s` SET `Type` = '%d' WHERE `Auth` = '%s' OR `Ip` = '%s';", DBName, BAN_NONE, auth, auth);
 		g_hDB.Query(DB_UpdateBan_Callback, sQuery, data);
 	}
 }
@@ -1224,4 +1216,29 @@ public int Native_GetDatabase(Handle plugin, int numParams)
 public int Native_GetBanCache(Handle plugin, int numParams)
 {
 	return view_as<int>(CloneHandle(g_hBanCache, plugin));
+}
+
+public int Native_CreateBan(Handle plugin, int numParams)
+{
+	char sAuth[32], sIp[16], sName[MAX_NAME_LENGTH], sReason[MAX_REASON_LENGTH], sAdminAuth[32], sAdminName[MAX_NAME_LENGTH];
+	GetNativeString(1, sAuth, sizeof(sAuth));
+	GetNativeString(2, sIp, sizeof(sIp));
+	GetNativeString(5, sName, sizeof(sName));
+	GetNativeString(7, sReason, sizeof(sReason));
+	GetNativeString(8, sAdminAuth, sizeof(sAdminAuth));
+	GetNativeString(9, sAdminName, sizeof(sAdminName));
+	
+	DB_CreateBan(sAuth, sIp, GetNativeCell(3), GetNativeCell(4), sName, GetNativeCell(6), sReason, sAdminAuth, sAdminName);
+	
+	return 0;
+}
+
+public int Native_RemoveBan(Handle plugin, int numParams)
+{
+	char sAuth[32];
+	GetNativeString(1, sAuth, sizeof(sAuth));
+	
+	DB_RemoveBan(sAuth);
+	
+	return 0;
 }
